@@ -1,0 +1,480 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Smoke Pause">
+<meta name="theme-color" content="#EAF3DE" id="themeColor">
+<title>Smoke Pause</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0;}
+html,body{height:100%;font-family:-apple-system,BlinkMacSystemFont,'SF Pro Display',sans-serif;}
+body{display:flex;align-items:flex-start;justify-content:center;min-height:100vh;transition:background 0.6s;}
+body.st-idle{background:#F1EFE8;}
+body.st-running{background:#FCEBEB;}
+body.st-ready{background:#EAF3DE;}
+#app{width:100%;max-width:430px;padding:env(safe-area-inset-top,20px) 16px 32px;display:flex;flex-direction:column;gap:12px;}
+.app-bar{display:flex;align-items:center;justify-content:space-between;padding-top:8px;}
+.app-name{font-size:13px;font-weight:600;letter-spacing:0.08em;text-transform:uppercase;color:#444441;}
+.icon-btn{width:38px;height:38px;border-radius:50%;border:0.5px solid rgba(0,0,0,0.12);background:rgba(255,255,255,0.6);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.nav-tabs{display:flex;gap:4px;background:rgba(255,255,255,0.45);border-radius:12px;padding:3px;}
+.tab{flex:1;text-align:center;padding:7px 0;font-size:13px;font-weight:500;border-radius:9px;cursor:pointer;color:#5F5E5A;border:none;background:none;-webkit-tap-highlight-color:transparent;}
+.tab.active{background:#fff;color:#2C2C2A;}
+.view{display:none;flex-direction:column;gap:10px;}
+.view.active{display:flex;}
+.card{background:rgba(255,255,255,0.72);border-radius:20px;border:0.5px solid rgba(0,0,0,0.07);padding:20px 16px;}
+.timer-card{text-align:center;}
+.t-label{font-size:11px;color:#888780;text-transform:uppercase;letter-spacing:0.06em;margin-bottom:6px;}
+.t-digits{font-size:72px;font-weight:300;line-height:1;font-variant-numeric:tabular-nums;transition:color 0.5s;letter-spacing:-2px;}
+.t-digits.c-run{color:#A32D2D;}
+.t-digits.c-ready{color:#3B6D11;}
+.t-digits.c-idle{color:#444441;}
+.t-sub{font-size:14px;margin-top:8px;color:#5F5E5A;min-height:20px;}
+.smoke-btn{width:100%;padding:18px;font-size:17px;font-weight:600;border-radius:16px;border:none;cursor:pointer;transition:background 0.4s,color 0.3s,transform 0.1s;-webkit-tap-highlight-color:transparent;}
+.smoke-btn.st-idle{background:rgba(255,255,255,0.8);color:#2C2C2A;border:0.5px solid rgba(0,0,0,0.1);}
+.smoke-btn.st-running{background:#E24B4A;color:#fff;}
+.smoke-btn.st-ready{background:#639922;color:#fff;}
+.smoke-btn:active{transform:scale(0.97);}
+.stats-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+.sc{background:rgba(255,255,255,0.65);border-radius:14px;padding:12px;text-align:center;}
+.sc-label{font-size:11px;color:#888780;margin-bottom:3px;}
+.sc-val{font-size:26px;font-weight:500;color:#2C2C2A;}
+.sc-unit{font-size:11px;color:#5F5E5A;}
+.period-tabs{display:flex;gap:4px;}
+.pt{flex:1;padding:7px 0;font-size:13px;font-weight:500;border-radius:10px;cursor:pointer;border:0.5px solid rgba(0,0,0,0.1);background:rgba(255,255,255,0.4);color:#5F5E5A;text-align:center;-webkit-tap-highlight-color:transparent;}
+.pt.active{background:#fff;color:#2C2C2A;}
+.list-card{background:rgba(255,255,255,0.72);border-radius:16px;overflow:hidden;border:0.5px solid rgba(0,0,0,0.07);}
+.row{display:flex;justify-content:space-between;align-items:center;padding:11px 14px;border-bottom:0.5px solid rgba(0,0,0,0.06);font-size:14px;color:#2C2C2A;}
+.row:last-child{border-bottom:none;}
+.muted{color:#888780;font-size:12px;}
+.empty{text-align:center;padding:20px;font-size:14px;color:#888780;}
+.settings-card{background:rgba(255,255,255,0.72);border-radius:20px;padding:16px;border:0.5px solid rgba(0,0,0,0.07);display:flex;flex-direction:column;gap:18px;}
+.s-row{display:flex;align-items:center;justify-content:space-between;gap:8px;}
+.s-label{font-size:15px;color:#2C2C2A;font-weight:500;}
+.s-sub{font-size:12px;color:#888780;margin-top:1px;}
+.toggle{width:48px;height:28px;border-radius:14px;border:none;cursor:pointer;position:relative;transition:background 0.25s;flex-shrink:0;-webkit-tap-highlight-color:transparent;}
+.toggle.on{background:#639922;}
+.toggle.off{background:#B4B2A9;}
+.toggle::after{content:'';position:absolute;top:3px;width:22px;height:22px;border-radius:50%;background:#fff;transition:left 0.25s;box-shadow:0 1px 3px rgba(0,0,0,0.2);}
+.toggle.on::after{left:23px;}
+.toggle.off::after{left:3px;}
+.slider-row{display:flex;align-items:center;gap:10px;}
+.slider-row input[type=range]{flex:1;-webkit-appearance:none;height:4px;border-radius:2px;background:#B4B2A9;outline:none;}
+.slider-row input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:22px;height:22px;border-radius:50%;background:#fff;border:0.5px solid rgba(0,0,0,0.15);box-shadow:0 1px 4px rgba(0,0,0,0.2);}
+.slider-val{font-size:14px;font-weight:500;color:#2C2C2A;min-width:48px;text-align:right;}
+.reset-btn{padding:8px 16px;font-size:13px;border-radius:10px;border:0.5px solid rgba(162,45,45,0.4);background:rgba(252,235,235,0.8);color:#A32D2D;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+.divider{height:0.5px;background:rgba(0,0,0,0.08);}
+.section-title{font-size:12px;font-weight:600;color:#888780;text-transform:uppercase;letter-spacing:0.06em;}
+.ntfy-input-wrap{display:flex;flex-direction:column;gap:6px;}
+.ntfy-input-wrap input{width:100%;padding:10px 12px;font-size:14px;border-radius:10px;border:0.5px solid rgba(0,0,0,0.15);background:rgba(255,255,255,0.8);color:#2C2C2A;outline:none;-webkit-appearance:none;}
+.ntfy-input-wrap input:focus{border-color:rgba(99,153,34,0.6);}
+.ntfy-status{font-size:11px;margin-top:2px;min-height:16px;}
+.ntfy-status.ok{color:#3B6D11;}
+.ntfy-status.err{color:#A32D2D;}
+.test-btn{padding:8px 14px;font-size:12px;border-radius:8px;border:0.5px solid rgba(0,0,0,0.12);background:rgba(255,255,255,0.8);color:#2C2C2A;cursor:pointer;white-space:nowrap;-webkit-tap-highlight-color:transparent;}
+</style>
+</head>
+<body class="st-idle">
+<div id="app">
+  <div class="app-bar">
+    <div class="app-name">Smoke Pause</div>
+    <div style="display:flex;gap:8px;">
+      <div class="icon-btn" onclick="switchTab('stats')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="9" width="3" height="6" rx="1" fill="#5F5E5A"/><rect x="6" y="5" width="3" height="10" rx="1" fill="#5F5E5A"/><rect x="11" y="2" width="3" height="13" rx="1" fill="#5F5E5A"/></svg>
+      </div>
+      <div class="icon-btn" onclick="switchTab('settings')">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="2.5" stroke="#5F5E5A" stroke-width="1.3"/><path d="M8 1v2M8 13v2M1 8h2M13 8h2M2.93 2.93l1.41 1.41M11.66 11.66l1.41 1.41M2.93 13.07l1.41-1.41M11.66 4.34l1.41-1.41" stroke="#5F5E5A" stroke-width="1.3" stroke-linecap="round"/></svg>
+      </div>
+    </div>
+  </div>
+
+  <div class="nav-tabs">
+    <button class="tab active" id="tab-main" onclick="switchTab('main')">Таймер</button>
+    <button class="tab" id="tab-stats" onclick="switchTab('stats')">Журнал</button>
+    <button class="tab" id="tab-settings" onclick="switchTab('settings')">Налашт.</button>
+  </div>
+
+  <div class="view active" id="view-main">
+    <div class="card timer-card">
+      <div class="t-label" id="tlabel">пауза між сигаретами</div>
+      <div class="t-digits c-idle" id="tdisp">--:--</div>
+      <div class="t-sub" id="tsub">натисни кнопку щоб почати</div>
+    </div>
+    <button class="smoke-btn st-idle" id="smokeBtn" onclick="onSmoke()">Викурив</button>
+    <div class="stats-grid">
+      <div class="sc"><div class="sc-label">сьогодні</div><div class="sc-val" id="todayCnt">0</div><div class="sc-unit">сигарет</div></div>
+      <div class="sc"><div class="sc-label">середня пауза</div><div class="sc-val" id="avgVal">—</div><div class="sc-unit" id="avgUnit"></div></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-stats">
+    <div class="period-tabs">
+      <button class="pt active" id="pt-day" onclick="setPeriod('day')">День</button>
+      <button class="pt" id="pt-month" onclick="setPeriod('month')">Місяць</button>
+      <button class="pt" id="pt-year" onclick="setPeriod('year')">Рік</button>
+    </div>
+    <div class="stats-grid" id="statCards"></div>
+    <div class="list-card" id="statTable"></div>
+  </div>
+
+  <div class="view" id="view-settings">
+    <div class="settings-card">
+
+      <div class="section-title">Таймер</div>
+      <div>
+        <div class="s-label" style="margin-bottom:10px;">Тривалість паузи</div>
+        <div class="slider-row">
+          <input type="range" min="10" max="180" step="5" id="pauseSlider" oninput="onPauseChange(this.value)">
+          <span class="slider-val" id="pauseVal">60 хв</span>
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-title">Сповіщення в додатку</div>
+      <div class="s-row">
+        <div><div class="s-label">Звук</div><div class="s-sub">сигнал коли пауза закінчилась</div></div>
+        <button class="toggle on" id="togSound" onclick="toggleSetting('sound')"></button>
+      </div>
+      <div class="s-row">
+        <div><div class="s-label">Вібрація</div><div class="s-sub">підтримується на iOS</div></div>
+        <button class="toggle on" id="togVibro" onclick="toggleSetting('vibro')"></button>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-title">Сповіщення на годинник (ntfy)</div>
+      <div class="s-row">
+        <div><div class="s-label">Надсилати через ntfy</div><div class="s-sub">push на телефон і Watch</div></div>
+        <button class="toggle off" id="togNtfy" onclick="toggleSetting('ntfy')"></button>
+      </div>
+      <div class="ntfy-input-wrap" id="ntfyBlock">
+        <div class="s-label" style="font-size:13px;">Твій ntfy топік</div>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="text" id="ntfyTopic" placeholder="наприклад: smoke-dima-2024" oninput="onNtfyTopicChange(this.value)">
+          <button class="test-btn" onclick="sendNtfy('Тест','Smoke Pause підключено!')">Тест</button>
+        </div>
+        <div class="ntfy-status" id="ntfyStatus"></div>
+        <div style="font-size:11px;color:#888780;line-height:1.5;">
+          Встанови додаток <b>ntfy</b> з App Store.<br>
+          В ntfy натисни + → підпишись на свій топік.<br>
+          Придумай унікальну назву (тільки латиниця, цифри, дефіс).
+        </div>
+      </div>
+
+      <div class="divider"></div>
+      <div class="section-title">Дані</div>
+      <div class="s-row">
+        <div><div class="s-label">Скинути журнал</div><div class="s-sub">видалити всю історію</div></div>
+        <button class="reset-btn" onclick="resetData()">Скинути</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+let cfg = JSON.parse(localStorage.getItem('sp_cfg')||'{"pause":60,"sound":true,"vibro":true,"ntfy":false,"ntfyTopic":""}');
+let history = JSON.parse(localStorage.getItem('sp_hist')||'[]');
+let timerInterval = null;
+let startTime = null;
+let running = false;
+let done = false;
+let notifySent = false;
+let curPeriod = 'day';
+
+function save(){
+  localStorage.setItem('sp_hist', JSON.stringify(history));
+  localStorage.setItem('sp_cfg', JSON.stringify(cfg));
+}
+
+function fmt(s){
+  const m=Math.floor(s/60),sec=s%60;
+  return String(m).padStart(2,'0')+':'+String(sec).padStart(2,'0');
+}
+function fmtTime(ts){
+  const d=new Date(ts);
+  return d.getHours().toString().padStart(2,'0')+':'+d.getMinutes().toString().padStart(2,'0');
+}
+function fmtDate(ts){
+  const d=new Date(ts);
+  return d.getDate().toString().padStart(2,'0')+'.'+(d.getMonth()+1).toString().padStart(2,'0');
+}
+function fmtMonth(ts){
+  const mn=['Січ','Лют','Бер','Кві','Тра','Чер','Лип','Сер','Вер','Жов','Лис','Гру'];
+  return mn[new Date(ts).getMonth()];
+}
+
+function getState(){ return running?'running':done?'ready':'idle'; }
+
+function applyTheme(){
+  const st=getState();
+  document.body.className='st-'+st;
+  document.getElementById('tdisp').className='t-digits c-'+(st==='running'?'run':st==='ready'?'ready':'idle');
+  document.getElementById('smokeBtn').className='smoke-btn st-'+st;
+  document.getElementById('themeColor').content=st==='running'?'#FCEBEB':st==='ready'?'#EAF3DE':'#F1EFE8';
+}
+
+function updateTimer(){
+  const sl=running?Math.max(0,cfg.pause*60-Math.floor((Date.now()-startTime)/1000)):cfg.pause*60;
+  const td=document.getElementById('tdisp');
+  const sub=document.getElementById('tsub');
+  const lbl=document.getElementById('tlabel');
+  if(!running&&!done){
+    td.textContent=fmt(cfg.pause*60);
+    sub.textContent='натисни кнопку щоб почати';
+    lbl.textContent='пауза між сигаретами';
+  } else if(done){
+    td.textContent='00:00';
+    sub.textContent='пауза виконана — можна!';
+    lbl.textContent='пауза завершена';
+  } else {
+    td.textContent=fmt(sl);
+    sub.textContent='залишилось';
+    lbl.textContent='до наступної сигарети';
+  }
+  applyTheme();
+}
+
+function updateMain(){
+  const k=new Date().toDateString();
+  const th=history.filter(e=>new Date(e.ts).toDateString()===k);
+  document.getElementById('todayCnt').textContent=th.length;
+  if(th.length>=2){
+    const ps=[];
+    for(let i=1;i<th.length;i++) ps.push((th[i].ts-th[i-1].ts)/60000);
+    const avg=ps.reduce((a,b)=>a+b,0)/ps.length;
+    document.getElementById('avgVal').textContent=Math.round(avg);
+    document.getElementById('avgUnit').textContent='хв';
+  } else {
+    document.getElementById('avgVal').textContent='—';
+    document.getElementById('avgUnit').textContent='';
+  }
+}
+
+async function sendNtfy(title, msg){
+  const topic=cfg.ntfyTopic.trim();
+  if(!topic){
+    showNtfyStatus('Введи назву топіку','err');
+    return;
+  }
+  try{
+    const r=await fetch('https://ntfy.sh/'+topic,{
+      method:'POST',
+      headers:{'Title':title,'Priority':'high','Tags':'bell'},
+      body:msg
+    });
+    if(r.ok){
+      showNtfyStatus('Надіслано успішно','ok');
+    } else {
+      showNtfyStatus('Помилка: '+r.status,'err');
+    }
+  } catch(e){
+    showNtfyStatus('Помилка з\'єднання','err');
+  }
+}
+
+function showNtfyStatus(msg, type){
+  const el=document.getElementById('ntfyStatus');
+  el.textContent=msg;
+  el.className='ntfy-status '+(type||'');
+  setTimeout(()=>{el.textContent='';el.className='ntfy-status';},4000);
+}
+
+function onTimerDone(){
+  clearInterval(timerInterval);
+  running=false; done=true;
+  if(cfg.vibro&&'vibrate'in navigator) navigator.vibrate([300,100,300,100,300]);
+  if(cfg.sound){
+    try{
+      const ctx=new AudioContext();
+      [0,.35,.7,1.1].forEach(t=>{
+        const o=ctx.createOscillator();
+        o.frequency.value=660;
+        o.connect(ctx.destination);
+        o.start(ctx.currentTime+t);
+        o.stop(ctx.currentTime+t+0.25);
+      });
+    }catch(e){}
+  }
+  if(cfg.ntfy&&cfg.ntfyTopic.trim()&&!notifySent){
+    notifySent=true;
+    sendNtfy('Smoke Pause','Пауза завершена — можна палити!');
+  }
+  updateTimer();
+  updateMain();
+}
+
+function startTimer(){
+  if(timerInterval) clearInterval(timerInterval);
+  notifySent=false;
+  timerInterval=setInterval(()=>{
+    const sl=Math.max(0,cfg.pause*60-Math.floor((Date.now()-startTime)/1000));
+    document.getElementById('tdisp').textContent=fmt(sl);
+    if(sl===0) onTimerDone();
+  },1000);
+}
+
+function onSmoke(){
+  history.push({ts:Date.now()});
+  save();
+  running=true; done=false;
+  startTime=Date.now();
+  localStorage.setItem('sp_start', String(startTime));
+  startTimer();
+  updateTimer();
+  updateMain();
+  if(document.getElementById('view-stats').classList.contains('active')) renderStats(curPeriod);
+}
+
+function restoreState(){
+  const saved=localStorage.getItem('sp_start');
+  if(!saved) return;
+  const st=parseInt(saved);
+  const elapsed=Math.floor((Date.now()-st)/1000);
+  if(elapsed<cfg.pause*60){
+    startTime=st;
+    running=true; done=false;
+    startTimer();
+  } else {
+    if(elapsed<cfg.pause*60+3600){
+      done=true; running=false;
+    }
+    localStorage.removeItem('sp_start');
+  }
+  updateTimer();
+}
+
+function switchTab(t){
+  ['main','stats','settings'].forEach(n=>{
+    document.getElementById('view-'+n).className='view'+(n===t?' active':'');
+    const tb=document.getElementById('tab-'+n);
+    if(tb) tb.className='tab'+(n===t?' active':'');
+  });
+  if(t==='stats') renderStats(curPeriod);
+  if(t==='settings') renderSettings();
+}
+
+function setPeriod(p){
+  curPeriod=p;
+  ['day','month','year'].forEach(n=>{
+    document.getElementById('pt-'+n).className='pt'+(n===p?' active':'');
+  });
+  renderStats(p);
+}
+
+function groupBy(arr,fn){
+  const m={};
+  arr.forEach(e=>{const k=fn(e.ts);if(!m[k])m[k]=[];m[k].push(e);});
+  return m;
+}
+
+function renderStats(period){
+  const cards=document.getElementById('statCards');
+  const table=document.getElementById('statTable');
+  const now=new Date();
+  let arr=[], groups={};
+  if(period==='day'){
+    arr=history.filter(e=>new Date(e.ts).toDateString()===now.toDateString()).slice().sort((a,b)=>a.ts-b.ts);
+    groups={'today':arr};
+  } else if(period==='month'){
+    const ym=now.getFullYear()+'-'+(now.getMonth()+1);
+    arr=history.filter(e=>{const d=new Date(e.ts);return d.getFullYear()+'-'+(d.getMonth()+1)===ym;});
+    groups=groupBy(arr,ts=>new Date(ts).toDateString());
+  } else {
+    arr=history.filter(e=>new Date(e.ts).getFullYear()===now.getFullYear());
+    groups=groupBy(arr,ts=>fmtMonth(ts)+new Date(ts).getFullYear());
+  }
+  const allArr=Object.values(groups).flat();
+  const total=allArr.length;
+  let allPauses=[];
+  if(period==='day'&&arr.length>=2){
+    for(let i=1;i<arr.length;i++) allPauses.push((arr[i].ts-arr[i-1].ts)/60000);
+  } else if(period!=='day'){
+    Object.values(groups).forEach(a=>{
+      const s=a.slice().sort((x,y)=>x.ts-y.ts);
+      for(let i=1;i<s.length;i++) allPauses.push((s[i].ts-s[i-1].ts)/60000);
+    });
+  }
+  const avgP=allPauses.length?Math.round(allPauses.reduce((a,b)=>a+b,0)/allPauses.length):null;
+  cards.innerHTML=`
+    <div class="sc"><div class="sc-label">всього</div><div class="sc-val">${total}</div><div class="sc-unit">сигарет</div></div>
+    <div class="sc"><div class="sc-label">середня пауза</div><div class="sc-val">${avgP!==null?avgP:'—'}</div><div class="sc-unit">${avgP!==null?'хв':''}</div></div>
+  `;
+  if(total===0){table.innerHTML='<div class="empty">немає даних</div>';return;}
+  if(period==='day'){
+    table.innerHTML=arr.map((e,i)=>{
+      const pause=i>0?Math.round((e.ts-arr[i-1].ts)/60000)+' хв':'перша';
+      return`<div class="row"><span>${fmtTime(e.ts)}</span><span class="muted">пауза: ${pause}</span></div>`;
+    }).join('');
+  } else {
+    table.innerHTML=Object.keys(groups).sort().map(k=>{
+      const a=groups[k].slice().sort((x,y)=>x.ts-y.ts);
+      const lbl=period==='month'?fmtDate(a[0].ts):fmtMonth(a[0].ts);
+      const ps=[];for(let i=1;i<a.length;i++) ps.push((a[i].ts-a[i-1].ts)/60000);
+      const ap=ps.length?Math.round(ps.reduce((x,y)=>x+y,0)/ps.length)+' хв':'—';
+      return`<div class="row"><span>${lbl}</span><span>${a.length} шт <span class="muted">сер. ${ap}</span></span></div>`;
+    }).join('');
+  }
+}
+
+function renderSettings(){
+  document.getElementById('pauseSlider').value=cfg.pause;
+  document.getElementById('pauseVal').textContent=cfg.pause+' хв';
+  document.getElementById('togSound').className='toggle '+(cfg.sound?'on':'off');
+  document.getElementById('togVibro').className='toggle '+(cfg.vibro?'on':'off');
+  document.getElementById('togNtfy').className='toggle '+(cfg.ntfy?'on':'off');
+  document.getElementById('ntfyTopic').value=cfg.ntfyTopic||'';
+  document.getElementById('ntfyBlock').style.display=cfg.ntfy?'flex':'none';
+  document.getElementById('ntfyBlock').style.flexDirection='column';
+  document.getElementById('ntfyBlock').style.gap='8px';
+}
+
+function onPauseChange(v){
+  cfg.pause=parseInt(v);
+  document.getElementById('pauseVal').textContent=v+' хв';
+  if(!running&&!done) updateTimer();
+  save();
+}
+
+function onNtfyTopicChange(v){
+  cfg.ntfyTopic=v.trim();
+  save();
+}
+
+function toggleSetting(k){
+  cfg[k]=!cfg[k];
+  const id='tog'+k.charAt(0).toUpperCase()+k.slice(1);
+  document.getElementById(id).className='toggle '+(cfg[k]?'on':'off');
+  if(k==='ntfy'){
+    const block=document.getElementById('ntfyBlock');
+    block.style.display=cfg[k]?'flex':'none';
+    if(cfg[k]) block.style.flexDirection='column';
+  }
+  save();
+}
+
+function resetData(){
+  if(confirm('Видалити весь журнал?')){
+    history=[];save();
+    running=false;done=false;
+    localStorage.removeItem('sp_start');
+    if(timerInterval)clearInterval(timerInterval);
+    updateTimer();updateMain();renderStats(curPeriod);
+  }
+}
+
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden && running){
+    const sl=Math.max(0,cfg.pause*60-Math.floor((Date.now()-startTime)/1000));
+    if(sl===0) onTimerDone();
+    else updateTimer();
+  }
+});
+
+restoreState();
+updateMain();
+renderSettings();
+</script>
+</body>
+</html>
