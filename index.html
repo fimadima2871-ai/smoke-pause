@@ -269,40 +269,38 @@ function showNtfyStatus(msg, type){
   setTimeout(()=>{el.textContent='';el.className='ntfy-status';},4000);
 }
 
-// Надсилає заплановане сповіщення з фіксованим ID
-// Якщо на сервері є старе з тим самим ID — воно замінюється новим
-async function scheduleNtfy(delayMin){
-  const topic = cfg.ntfyTopic.trim();
-  if(!topic) return;
-  const msgId = getMsgId();
-  try {
-    await fetch('https://ntfy.sh/'+topic, {
-      method: 'POST',
-      headers: {
-        'Title': 'Smoke Pause 🟢',
-        'Priority': 'high',
-        'Tags': 'bell',
-        'Delay': delayMin+'min',
-        'Message-Id': msgId
-      },
-      body: 'Пауза '+delayMin+' хв завершена — можна палити!'
-    });
-  } catch(e) {}
+// XMLHttpRequest обходить CORS обмеження Safari PWA на відміну від fetch
+function xhrNtfy(topic, headers, body, onOk, onErr){
+  const xhr = new XMLHttpRequest();
+  xhr.open('POST', 'https://ntfy.sh/'+topic, true);
+  Object.entries(headers).forEach(([k,v]) => xhr.setRequestHeader(k, v));
+  xhr.onload = function(){ if(xhr.status>=200&&xhr.status<300){if(onOk)onOk();}else{if(onErr)onErr(xhr.status);} };
+  xhr.onerror = function(){ if(onErr)onErr(0); };
+  xhr.send(body);
 }
 
-async function testNtfy(){
+function scheduleNtfy(delayMin){
+  const topic = cfg.ntfyTopic.trim();
+  if(!topic) return;
+  xhrNtfy(topic, {
+    'Content-Type': 'text/plain',
+    'Title': 'Smoke Pause',
+    'Priority': 'high',
+    'Tags': 'bell',
+    'Delay': delayMin+'min',
+    'Message-Id': getMsgId()
+  }, 'Пауза '+delayMin+' хв завершена — можна палити!', null, null);
+}
+
+function testNtfy(){
   const topic = cfg.ntfyTopic.trim();
   if(!topic){ showNtfyStatus('Введи назву топіку','err'); return; }
-  try {
-    const r = await fetch('https://ntfy.sh/'+topic, {
-      method: 'POST',
-      headers: { 'Title': 'Тест', 'Priority': 'high', 'Tags': 'white_check_mark' },
-      body: 'Smoke Pause підключено!'
-    });
-    showNtfyStatus(r.ok ? 'Надіслано!' : 'Помилка: '+r.status, r.ok ? 'ok' : 'err');
-  } catch(e) {
-    showNtfyStatus('Помилка з\'єднання','err');
-  }
+  xhrNtfy(topic,
+    {'Content-Type':'text/plain','Title':'Тест','Priority':'high','Tags':'white_check_mark'},
+    'Smoke Pause підключено!',
+    ()=>showNtfyStatus('Надіслано!','ok'),
+    (c)=>showNtfyStatus(c?'Помилка: '+c:'Помилка з\'єднання','err')
+  );
 }
 
 function onTimerDone(){
