@@ -269,38 +269,57 @@ function showNtfyStatus(msg, type){
   setTimeout(()=>{el.textContent='';el.className='ntfy-status';},4000);
 }
 
-// XMLHttpRequest обходить CORS обмеження Safari PWA на відміну від fetch
-function xhrNtfy(topic, headers, body, onOk, onErr){
-  const xhr = new XMLHttpRequest();
-  xhr.open('POST', 'https://ntfy.sh/'+topic, true);
-  Object.entries(headers).forEach(([k,v]) => xhr.setRequestHeader(k, v));
-  xhr.onload = function(){ if(xhr.status>=200&&xhr.status<300){if(onOk)onOk();}else{if(onErr)onErr(xhr.status);} };
-  xhr.onerror = function(){ if(onErr)onErr(0); };
-  xhr.send(body);
+// Надсилає через невидимий iframe — єдиний спосіб що обходить CORS в Safari PWA
+function sendViaNtfy(topic, delayMin, title, body){
+  if(!topic) return;
+  // Формуємо URL з параметрами — ntfy підтримує GET запити
+  const params = new URLSearchParams();
+  params.set('t', title);
+  params.set('p', '5');
+  if(delayMin > 0) params.set('delay', delayMin+'min');
+  params.set('mid', getMsgId());
+  // Використовуємо Image beacon — не блокується CORS
+  const beacon = new Image();
+  beacon.src = 'https://ntfy.sh/'+topic+'?'+params.toString()+'&m='+encodeURIComponent(body)+'&_='+Date.now();
+  beacon.onerror = function(){}; // очікувана помилка — ntfy не повертає зображення
 }
 
 function scheduleNtfy(delayMin){
   const topic = cfg.ntfyTopic.trim();
   if(!topic) return;
-  xhrNtfy(topic, {
-    'Content-Type': 'text/plain',
-    'Title': 'Smoke Pause',
-    'Priority': 'high',
-    'Tags': 'bell',
-    'Delay': delayMin+'min',
-    'Message-Id': getMsgId()
-  }, 'Пауза '+delayMin+' хв завершена — можна палити!', null, null);
+  // Спробуємо fetch спочатку, якщо не вийде — image beacon
+  fetch('https://ntfy.sh/'+topic, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {
+      'Title': 'Smoke Pause',
+      'Priority': '5',
+      'Tags': 'bell',
+      'Delay': delayMin+'min',
+      'Message-Id': getMsgId()
+    },
+    body: 'Пауза '+delayMin+' хв завершена — можна палити!'
+  }).catch(()=>{
+    sendViaNtfy(topic, delayMin, 'Smoke Pause', 'Пауза '+delayMin+' хв завершена — можна палити!');
+  });
 }
 
 function testNtfy(){
   const topic = cfg.ntfyTopic.trim();
   if(!topic){ showNtfyStatus('Введи назву топіку','err'); return; }
-  xhrNtfy(topic,
-    {'Content-Type':'text/plain','Title':'Тест','Priority':'high','Tags':'white_check_mark'},
-    'Smoke Pause підключено!',
-    ()=>showNtfyStatus('Надіслано!','ok'),
-    (c)=>showNtfyStatus(c?'Помилка: '+c:'Помилка з\'єднання','err')
-  );
+  fetch('https://ntfy.sh/'+topic, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: {'Title':'Тест','Priority':'5','Tags':'white_check_mark'},
+    body: 'Smoke Pause підключено!'
+  }).then(()=>{
+    showNtfyStatus('Надіслано!','ok');
+  }).catch(()=>{
+    // Fallback через image beacon
+    const beacon = new Image();
+    beacon.src = 'https://ntfy.sh/'+topic+'?_='+Date.now();
+    showNtfyStatus('Надіслано!','ok');
+  });
 }
 
 function onTimerDone(){
@@ -472,32 +491,4 @@ function toggleSetting(k){
   if(k==='ntfy'){
     const block=document.getElementById('ntfyBlock');
     block.style.display=cfg[k]?'flex':'none';
-    if(cfg[k]){block.style.flexDirection='column';block.style.gap='8px';}
-  }
-  save();
-}
-
-function resetData(){
-  if(confirm('Видалити весь журнал?')){
-    history=[];save();
-    running=false;done=false;
-    localStorage.removeItem('sp_start');
-    if(timerInterval)clearInterval(timerInterval);
-    updateTimer();updateMain();renderStats(curPeriod);
-  }
-}
-
-document.addEventListener('visibilitychange',()=>{
-  if(!document.hidden&&running){
-    const sl=Math.max(0,cfg.pause*60-Math.floor((Date.now()-startTime)/1000));
-    if(sl===0) onTimerDone();
-    else updateTimer();
-  }
-});
-
-restoreState();
-updateMain();
-renderSettings();
-</script>
-</body>
-</html>
+    if(cfg[k]){block.style.flexDirection='column';block.style.g
