@@ -145,20 +145,20 @@ body.st-ready{background:#EAF3DE;}
       <div class="divider"></div>
       <div class="section-title">Сповіщення на годинник (ntfy)</div>
       <div class="s-row">
-        <div><div class="s-label">Надсилати через ntfy</div><div class="s-sub">push на телефон і Watch</div></div>
+        <div><div class="s-label">Надсилати через ntfy</div><div class="s-sub">push на телефон і Watch навіть при закритому екрані</div></div>
         <button class="toggle off" id="togNtfy" onclick="toggleSetting('ntfy')"></button>
       </div>
-      <div class="ntfy-input-wrap" id="ntfyBlock">
+      <div class="ntfy-input-wrap" id="ntfyBlock" style="display:none;">
         <div class="s-label" style="font-size:13px;">Твій ntfy топік</div>
         <div style="display:flex;gap:8px;align-items:center;">
           <input type="text" id="ntfyTopic" placeholder="наприклад: smoke-dima-2024" oninput="onNtfyTopicChange(this.value)">
-          <button class="test-btn" onclick="sendNtfy('Тест','Smoke Pause підключено!')">Тест</button>
+          <button class="test-btn" onclick="testNtfy()">Тест</button>
         </div>
         <div class="ntfy-status" id="ntfyStatus"></div>
-        <div style="font-size:11px;color:#888780;line-height:1.5;">
-          Встанови додаток <b>ntfy</b> з App Store.<br>
-          В ntfy натисни + → підпишись на свій топік.<br>
-          Придумай унікальну назву (тільки латиниця, цифри, дефіс).
+        <div style="font-size:11px;color:#888780;line-height:1.6;background:rgba(0,0,0,0.04);padding:8px;border-radius:8px;">
+          ✅ Сповіщення надсилаються <b>одразу при натисканні "Викурив"</b> з затримкою.<br>
+          ✅ Якщо натиснути <b>знову — старе скасовується</b>, нове планується.<br><br>
+          Встанови <b>ntfy</b> з App Store → натисни + → підпишись на свій топік.
         </div>
       </div>
 
@@ -180,8 +180,17 @@ let timerInterval = null;
 let startTime = null;
 let running = false;
 let done = false;
-let notifySent = false;
 let curPeriod = 'day';
+
+// Фіксований ID повідомлення — один і той самий для кожного користувача
+// При повторному натисканні ntfy.sh замінює старе повідомлення новим
+function getMsgId(){
+  const topic = cfg.ntfyTopic.trim();
+  // Простий хеш з топіку — завжди однаковий для одного користувача
+  let h = 0;
+  for(let i=0;i<topic.length;i++) h = (h*31 + topic.charCodeAt(i)) & 0xFFFFFF;
+  return 'sp-' + h.toString(16).padStart(6,'0');
+}
 
 function save(){
   localStorage.setItem('sp_hist', JSON.stringify(history));
@@ -252,33 +261,48 @@ function updateMain(){
   }
 }
 
-async function sendNtfy(title, msg){
-  const topic=cfg.ntfyTopic.trim();
-  if(!topic){
-    showNtfyStatus('Введи назву топіку','err');
-    return;
-  }
-  try{
-    const r=await fetch('https://ntfy.sh/'+topic,{
-      method:'POST',
-      headers:{'Title':title,'Priority':'high','Tags':'bell'},
-      body:msg
-    });
-    if(r.ok){
-      showNtfyStatus('Надіслано успішно','ok');
-    } else {
-      showNtfyStatus('Помилка: '+r.status,'err');
-    }
-  } catch(e){
-    showNtfyStatus('Помилка з\'єднання','err');
-  }
-}
-
 function showNtfyStatus(msg, type){
   const el=document.getElementById('ntfyStatus');
+  if(!el) return;
   el.textContent=msg;
   el.className='ntfy-status '+(type||'');
   setTimeout(()=>{el.textContent='';el.className='ntfy-status';},4000);
+}
+
+// Надсилає заплановане сповіщення з фіксованим ID
+// Якщо на сервері є старе з тим самим ID — воно замінюється новим
+async function scheduleNtfy(delayMin){
+  const topic = cfg.ntfyTopic.trim();
+  if(!topic) return;
+  const msgId = getMsgId();
+  try {
+    await fetch('https://ntfy.sh/'+topic, {
+      method: 'POST',
+      headers: {
+        'Title': 'Smoke Pause 🟢',
+        'Priority': 'high',
+        'Tags': 'bell',
+        'Delay': delayMin+'min',
+        'Message-Id': msgId
+      },
+      body: 'Пауза '+delayMin+' хв завершена — можна палити!'
+    });
+  } catch(e) {}
+}
+
+async function testNtfy(){
+  const topic = cfg.ntfyTopic.trim();
+  if(!topic){ showNtfyStatus('Введи назву топіку','err'); return; }
+  try {
+    const r = await fetch('https://ntfy.sh/'+topic, {
+      method: 'POST',
+      headers: { 'Title': 'Тест', 'Priority': 'high', 'Tags': 'white_check_mark' },
+      body: 'Smoke Pause підключено!'
+    });
+    showNtfyStatus(r.ok ? 'Надіслано!' : 'Помилка: '+r.status, r.ok ? 'ok' : 'err');
+  } catch(e) {
+    showNtfyStatus('Помилка з\'єднання','err');
+  }
 }
 
 function onTimerDone(){
@@ -297,17 +321,12 @@ function onTimerDone(){
       });
     }catch(e){}
   }
-  if(cfg.ntfy&&cfg.ntfyTopic.trim()&&!notifySent){
-    notifySent=true;
-    sendNtfy('Smoke Pause','Пауза завершена — можна палити!');
-  }
   updateTimer();
   updateMain();
 }
 
 function startTimer(){
   if(timerInterval) clearInterval(timerInterval);
-  notifySent=false;
   timerInterval=setInterval(()=>{
     const sl=Math.max(0,cfg.pause*60-Math.floor((Date.now()-startTime)/1000));
     document.getElementById('tdisp').textContent=fmt(sl);
@@ -324,6 +343,13 @@ function onSmoke(){
   startTimer();
   updateTimer();
   updateMain();
+
+  // Надсилаємо заплановане сповіщення з фіксованим ID
+  // Якщо вже є заплановане — ntfy.sh замінить його новим (скасує старе)
+  if(cfg.ntfy && cfg.ntfyTopic.trim()){
+    scheduleNtfy(cfg.pause);
+  }
+
   if(document.getElementById('view-stats').classList.contains('active')) renderStats(curPeriod);
 }
 
@@ -337,9 +363,7 @@ function restoreState(){
     running=true; done=false;
     startTimer();
   } else {
-    if(elapsed<cfg.pause*60+3600){
-      done=true; running=false;
-    }
+    if(elapsed<cfg.pause*60+3600){ done=true; running=false; }
     localStorage.removeItem('sp_start');
   }
   updateTimer();
@@ -426,8 +450,10 @@ function renderSettings(){
   document.getElementById('togNtfy').className='toggle '+(cfg.ntfy?'on':'off');
   document.getElementById('ntfyTopic').value=cfg.ntfyTopic||'';
   document.getElementById('ntfyBlock').style.display=cfg.ntfy?'flex':'none';
-  document.getElementById('ntfyBlock').style.flexDirection='column';
-  document.getElementById('ntfyBlock').style.gap='8px';
+  if(cfg.ntfy){
+    document.getElementById('ntfyBlock').style.flexDirection='column';
+    document.getElementById('ntfyBlock').style.gap='8px';
+  }
 }
 
 function onPauseChange(v){
@@ -444,12 +470,11 @@ function onNtfyTopicChange(v){
 
 function toggleSetting(k){
   cfg[k]=!cfg[k];
-  const id='tog'+k.charAt(0).toUpperCase()+k.slice(1);
-  document.getElementById(id).className='toggle '+(cfg[k]?'on':'off');
+  document.getElementById('tog'+k.charAt(0).toUpperCase()+k.slice(1)).className='toggle '+(cfg[k]?'on':'off');
   if(k==='ntfy'){
     const block=document.getElementById('ntfyBlock');
     block.style.display=cfg[k]?'flex':'none';
-    if(cfg[k]) block.style.flexDirection='column';
+    if(cfg[k]){block.style.flexDirection='column';block.style.gap='8px';}
   }
   save();
 }
@@ -465,7 +490,7 @@ function resetData(){
 }
 
 document.addEventListener('visibilitychange',()=>{
-  if(!document.hidden && running){
+  if(!document.hidden&&running){
     const sl=Math.max(0,cfg.pause*60-Math.floor((Date.now()-startTime)/1000));
     if(sl===0) onTimerDone();
     else updateTimer();
